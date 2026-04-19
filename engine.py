@@ -3,6 +3,9 @@ import json
 import feedparser
 from supabase import create_client, Client
 from groq import Groq
+from dotenv import load_dotenv
+
+load_dotenv()
 
 print("initiating orbisscope automated rss engine...")
 
@@ -14,9 +17,21 @@ supabase: Client = create_client(
 groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 # 2. the bulletproof rss feeds
+# 2. The Bulletproof RSS Feeds
 RSS_FEEDS = [
+    # Geopolitics
     "https://www.aljazeera.com/xml/rss/all.xml",
-    "http://feeds.bbci.co.uk/news/world/rss.xml"
+    "http://feeds.bbci.co.uk/news/world/rss.xml",
+    "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+    "https://www.theguardian.com/world/rss",
+    
+    # Defense & Cyber
+    "https://www.defensenews.com/arc/outboundfeeds/rss/?outputType=xml",
+    "https://feeds.feedburner.com/TheHackersNews",
+    
+    # Financial Markets
+    "https://finance.yahoo.com/news/rssindex",
+    "http://feeds.marketwatch.com/marketwatch/topstories/"
 ]
 
 def analyze_news(title, summary):
@@ -34,7 +49,7 @@ def analyze_news(title, summary):
 
         chat_completion = groq_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model="llama3-8b-8192",
+            model="llama-3.1-8b-instant",
             temperature=0.1,
             response_format={"type": "json_object"}
         )
@@ -54,13 +69,17 @@ for url in RSS_FEEDS:
     
     # just grab the top 5 newest articles per feed to save api limits
     for entry in feed.entries[:5]:
-        intel = analyze_news(entry.title, entry.description)
+        
+        # THE FIX: Safely try to get the description or summary. If neither exist, pass a blank string.
+        article_summary = entry.get('description', entry.get('summary', ''))
+        
+        intel = analyze_news(entry.title, article_summary)
         
         if intel and intel.get("lat") and intel.get("lng"):
             # attach the frontend requirements
             intel["event_type"] = "rss_intercept"
             processed_data.append(intel)
-            print(f"processed: {intel['location_name']} with score {intel['sentiment_score']}")
+            print(f"processed: {intel.get('location_name')} with score {intel.get('sentiment_score')}")
 
 # 4. push to supabase
 if processed_data:

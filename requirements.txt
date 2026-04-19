@@ -1,4 +1,5 @@
 supabase
 feedparser
 groq
+python-dotenv
 
