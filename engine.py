@@ -75,23 +75,46 @@ def get_unprocessed(supabase):
     return [r for r in (raw.data or []) if r["id"] not in done_ids][:BATCH]
 
 
+# Flipped to False the first time the new risk columns are found to be missing,
+# so we stop attempting them until migration 001 has been run.
+_HAS_RISK_COLS = True
+
+
 def refine_one(supabase):
     def handler(article):
+        global _HAS_RISK_COLS
         intel = classify(article["title"], article.get("raw_text", ""))
         loc = normalize_location(intel.get("primary_location", "Global"))
         lat, lng = geocoder.locate(loc)
-        supabase.table("processed_events").insert({
+        core = {
             "raw_news_id": article["id"],
             "event_type": intel.get("category", "NEUTRAL_NEWS"),
             "sentiment_score": float(intel.get("tension_score", 0.0)),
-            "relevance": float(intel.get("relevance", 0.5)),
-            "sentiment_signed": float(intel.get("sentiment", 0.0)),
-            "source_weight": source_weight(article.get("source", "")),
             "location_name": loc,
             "lat": lat,
             "lng": lng,
             "event_description": intel.get("event_description", article["title"]),
-        }).execute()
+        }
+        risk = {
+            "relevance": float(intel.get("relevance", 0.5)),
+            "sentiment_signed": float(intel.get("sentiment", 0.0)),
+            "source_weight": source_weight(article.get("source", "")),
+        }
+        if _HAS_RISK_COLS:
+            try:
+                supabase.table("processed_events").insert({**core, **risk}).execute()
+            except Exception as e:  # noqa: BLE001
+                msg = str(e)
+                # PGRST204 = unknown column (migration 001 not run yet). Degrade
+                # to the core insert so the map/news keep flowing regardless.
+                if "PGRST204" in msg or "schema cache" in msg or "does not exist" in msg:
+                    print("  ⚠️ risk columns missing (run migration 001) — inserting core only")
+                    _HAS_RISK_COLS = False
+                    supabase.table("processed_events").insert(core).execute()
+                else:
+                    raise
+        else:
+            supabase.table("processed_events").insert(core).execute()
         print(f"  [+] {intel.get('category')} {intel.get('tension_score')} | {loc}")
 
     return handler
