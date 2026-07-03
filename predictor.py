@@ -205,8 +205,12 @@ def run():
     id_by_symbol = {r["symbol"]: r["id"] for r in (existing.data or [])}
 
     for symbol, f in frames.items():
-        latest = f.dropna(subset=FEATURES).iloc[-1]
-        prob_up = float(model.predict_proba(latest[FEATURES].to_frame().T)[0][1])
+        sub = f.dropna(subset=FEATURES)
+        latest = sub.iloc[-1]
+        # Predict from a 1-row DataFrame cast to float; a transposed Series
+        # collapses to object dtype, which LightGBM rejects.
+        X_pred = sub.iloc[[-1]][FEATURES].astype(float)
+        prob_up = float(model.predict_proba(X_pred)[0][1])
         action, trend = signal_from_prob(prob_up, latest["rsi"])
         confidence = round(max(prob_up, 1 - prob_up) * 100, 1)
         uncertainty = round((1 - abs(prob_up - 0.5) * 2) * 100, 1)
