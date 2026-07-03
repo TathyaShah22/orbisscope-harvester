@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
-from common import get_supabase, now_iso, fetch_all
+from common import get_supabase, now_iso, fetch_all, RISKS
 
 TOP_COUNTRIES = 12           # per-country scopes to score
 HISTORY_DAYS = 120           # days of risk_scores to (re)write
@@ -47,11 +47,14 @@ BASKET_ASSETS = sorted({a for b in BASKETS.values() for a in b})
 def load_events(supabase):
     rows = fetch_all(
         supabase, "processed_events",
-        "sentiment_score,relevance,sentiment_signed,source_weight,event_type,location_name,processed_at",
+        "sentiment_score,relevance,sentiment_signed,source_weight,event_type,"
+        "location_name,processed_at,risk_id,risk_relevance",
     )
     df = pd.DataFrame(rows)
     if df.empty:
         return df
+    if "risk_id" not in df:
+        df["risk_id"] = None
     df["processed_at"] = pd.to_datetime(df["processed_at"], utc=True, errors="coerce")
     df = df.dropna(subset=["processed_at"])
     df["day"] = df["processed_at"].dt.normalize()
@@ -98,6 +101,13 @@ def build_risk_scores(df):
            ["location_name"].value_counts().head(TOP_COUNTRIES).index.tolist())
     for c in top:
         scopes[c] = df[df["location_name"] == c]
+
+    # Per named-risk scopes (Tier B) — e.g. US_CHINA, MIDDLE_EAST.
+    if "risk_id" in df:
+        for r in RISKS:
+            sub = df[df["risk_id"] == r["slug"]]
+            if not sub.empty:
+                scopes[r["slug"]] = sub
 
     cutoff = df["day"].max() - pd.Timedelta(days=HISTORY_DAYS)
     out = []
@@ -193,6 +203,10 @@ def build_risk_movement(df, rets):
     # Per event-type scenario.
     for etype, weights in BASKETS.items():
         add(etype, weights)
+
+    # Per named-risk scenario (Tier B) — each risk's own MDS basket.
+    for r in RISKS:
+        add(r["slug"], r["basket"])
 
     # Recent window drives GLOBAL + per-country blends.
     recent = df[df["day"] >= (df["day"].max() - pd.Timedelta(days=30))]

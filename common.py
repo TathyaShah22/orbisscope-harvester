@@ -55,6 +55,104 @@ def source_weight(name: str) -> float:
     return SOURCE_WEIGHTS.get(name, 1.0)
 
 
+# --------------------------------------------------------------------------
+# Named geopolitical risks (BGRI-style). Each risk is defined by prototype
+# sentences (used to embed a semantic centroid for tagging) and a Market-Driven
+# Scenario basket (expected sign of 1-month asset shocks, for the priced-in
+# index). Shared by risk_tagger.py and risk_index.py.
+# --------------------------------------------------------------------------
+
+RISKS = [
+    {
+        "slug": "MIDDLE_EAST",
+        "name": "Middle East Conflict",
+        "prototypes": [
+            "Israel and Hamas war in Gaza",
+            "Iran missile strikes and nuclear program",
+            "Hezbollah attacks from Lebanon",
+            "conflict in the Strait of Hormuz threatening oil supply",
+        ],
+        "basket": {"CL=F": 1, "GC=F": 1, "GLD": 1, "^GSPC": -1, "^IXIC": -1},
+    },
+    {
+        "slug": "RUSSIA_UKRAINE",
+        "name": "Russia–Ukraine War",
+        "prototypes": [
+            "Russia's invasion of Ukraine",
+            "NATO tensions and confrontation with Moscow",
+            "Western sanctions on Russia",
+            "European natural gas and energy supply cut off",
+        ],
+        "basket": {"CL=F": 1, "GC=F": 1, "GLD": 1, "^GSPC": -0.5, "^N225": -0.3},
+    },
+    {
+        "slug": "US_CHINA",
+        "name": "US–China Tensions",
+        "prototypes": [
+            "US China trade war and tariffs",
+            "Taiwan tensions and Chinese military drills",
+            "semiconductor and chip export controls",
+            "decoupling of US and Chinese technology",
+        ],
+        "basket": {"^IXIC": -1, "^HSI": -1, "GC=F": 1, "GLD": 1},
+    },
+    {
+        "slug": "NORTH_KOREA",
+        "name": "North Korea",
+        "prototypes": [
+            "North Korea ballistic missile test",
+            "Pyongyang nuclear weapons program",
+            "military tension on the Korean peninsula",
+        ],
+        "basket": {"^N225": -1, "^GSPC": -0.3, "GC=F": 1},
+    },
+    {
+        "slug": "CYBER",
+        "name": "Cyber & Infrastructure",
+        "prototypes": [
+            "major cyberattack on critical infrastructure",
+            "ransomware attack crippling companies",
+            "large-scale data breach and hacking campaign",
+        ],
+        "basket": {"^IXIC": -1, "^GSPC": -0.3},
+    },
+    {
+        "slug": "TRADE_TARIFFS",
+        "name": "Global Trade & Tariffs",
+        "prototypes": [
+            "new tariffs and trade barriers",
+            "global supply chain disruption",
+            "trade dispute between major economies",
+        ],
+        "basket": {"^GSPC": -1, "^IXIC": -1, "^HSI": -0.5, "GC=F": 1},
+    },
+    {
+        "slug": "ENERGY",
+        "name": "Energy Shock",
+        "prototypes": [
+            "oil price surge",
+            "OPEC production cut",
+            "natural gas supply crisis",
+            "global energy market disruption",
+        ],
+        "basket": {"CL=F": 1, "^GSPC": -0.5},
+    },
+    {
+        "slug": "FINANCIAL",
+        "name": "Financial & Recession",
+        "prototypes": [
+            "global recession fears",
+            "surging inflation and rising interest rates",
+            "banking crisis and bank failures",
+            "stock market crash",
+        ],
+        "basket": {"^GSPC": -1, "^IXIC": -1, "^DJI": -1, "GC=F": 1, "GLD": 1},
+    },
+]
+
+RISK_BY_SLUG = {r["slug"]: r for r in RISKS}
+
+
 def fetch_all(supabase, table, columns="*", order_col=None, desc=True, page_size=1000):
     """
     Fetch ALL rows from a table, paginating around PostgREST's default 1000-row

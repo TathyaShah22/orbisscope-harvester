@@ -17,7 +17,12 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Install Dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.txt sentence-transformers
+      - name: Tag events with named risks (embeddings)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python risk_tagger.py
       - name: Generate market signals
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
