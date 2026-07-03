@@ -34,6 +34,24 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def fetch_all(supabase, table, columns="*", order_col=None, desc=True, page_size=1000):
+    """
+    Fetch ALL rows from a table, paginating around PostgREST's default 1000-row
+    response cap. Without this, .limit(50000) silently returns only 1000 rows —
+    which breaks dedup and starves aggregations.
+    """
+    rows, start = [], 0
+    while True:
+        q = supabase.table(table).select(columns)
+        if order_col:
+            q = q.order(order_col, desc=desc)
+        batch = (q.range(start, start + page_size - 1).execute().data) or []
+        rows.extend(batch)
+        if len(batch) < page_size:
+            return rows
+        start += page_size
+
+
 # --------------------------------------------------------------------------
 # Rate limiter (token bucket) — paces API calls so we never trip 429s.
 # --------------------------------------------------------------------------

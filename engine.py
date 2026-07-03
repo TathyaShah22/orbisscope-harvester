@@ -25,6 +25,7 @@ from groq import Groq
 
 from common import (
     get_supabase, RateLimiter, process_queue, normalize_location, Geocoder,
+    fetch_all,
 )
 
 BATCH = 60          # max articles to refine per run (keeps Actions runs short)
@@ -60,13 +61,14 @@ def classify(title, summary):
 
 
 def get_unprocessed(supabase):
-    processed = supabase.table("processed_events").select("raw_news_id").limit(50000).execute()
-    done_ids = {r["raw_news_id"] for r in (processed.data or []) if r.get("raw_news_id")}
+    # Paginate past the 1000-row cap so dedup sees every already-processed id.
+    processed = fetch_all(supabase, "processed_events", "raw_news_id")
+    done_ids = {r["raw_news_id"] for r in processed if r.get("raw_news_id")}
 
     raw = (supabase.table("raw_news_feed")
            .select("*")
            .order("created_at", desc=True)
-           .limit(500)
+           .limit(1000)
            .execute())
     return [r for r in (raw.data or []) if r["id"] not in done_ids][:BATCH]
 

@@ -23,7 +23,7 @@ import pandas as pd
 import yfinance as yf
 import lightgbm as lgb
 
-from common import get_supabase, now_iso
+from common import get_supabase, now_iso, fetch_all
 
 # symbol -> display name. Symbols match the existing market_signals rows so the
 # upsert refreshes them in place.
@@ -46,10 +46,10 @@ ASSETS = {
 # --------------------------------------------------------------------------
 
 def build_gti(supabase):
-    resp = (supabase.table("processed_events")
-            .select("sentiment_score,event_type,processed_at")
-            .limit(20000).execute())
-    df = pd.DataFrame(resp.data or [])
+    # Paginate past the 1000-row cap so the GTI reflects the full event history.
+    rows = fetch_all(supabase, "processed_events",
+                     "sentiment_score,event_type,processed_at")
+    df = pd.DataFrame(rows)
     if df.empty:
         return pd.DataFrame()
     df["processed_at"] = pd.to_datetime(df["processed_at"], utc=True, errors="coerce")

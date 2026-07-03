@@ -32,12 +32,11 @@ def harvest():
     supabase = get_supabase()
     print(f"[{now_iso()}] 📡 Feeder starting...")
 
-    # Existing URLs (dedup). raw_news_feed has ~17k rows; pull just the url column.
-    existing = supabase.table("raw_news_feed").select("url").limit(50000).execute()
-    seen = {row["url"] for row in (existing.data or []) if row.get("url")}
-    print(f"  {len(seen)} known URLs loaded for dedup.")
-
-    new_rows = []
+    # Collect this sweep's articles, deduped within the batch by url. The DB's
+    # unique constraint on url handles cross-run dedup (via upsert below), so we
+    # don't need to prefetch every existing url (which the 1000-row cap made
+    # unreliable anyway).
+    batch = {}
     for source, url in RSS_FEEDS.items():
         try:
             feed = feedparser.parse(url)
@@ -47,26 +46,29 @@ def harvest():
 
         for entry in feed.entries[:PER_FEED]:
             link = entry.get("link")
-            if not link or link in seen:
+            if not link or link in batch:
                 continue
-            seen.add(link)
-            new_rows.append({
+            batch[link] = {
                 "source": source,
                 "title": entry.get("title", ""),
                 "url": link,
                 "source_url": url,
                 "published_at": now_iso(),
                 "raw_text": entry.get("summary", entry.get("description", "")),
-            })
+            }
 
+    new_rows = list(batch.values())
     if not new_rows:
-        print("  ⏸ No new articles this sweep.")
+        print("  ⏸ No articles fetched this sweep.")
         return
 
-    print(f"  📥 Inserting {len(new_rows)} new articles...")
-    # Chunk inserts to keep payloads small.
+    print(f"  📥 Upserting {len(new_rows)} articles (existing urls ignored)...")
     for i in range(0, len(new_rows), 200):
-        supabase.table("raw_news_feed").insert(new_rows[i:i + 200]).execute()
+        # ignore_duplicates -> ON CONFLICT (url) DO NOTHING, so already-seen
+        # articles are skipped instead of raising a 23505 unique violation.
+        (supabase.table("raw_news_feed")
+         .upsert(new_rows[i:i + 200], on_conflict="url", ignore_duplicates=True)
+         .execute())
     print("  ✅ Feeder complete.")
 
 
