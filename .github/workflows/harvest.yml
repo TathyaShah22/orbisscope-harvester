@@ -1,23 +1,25 @@
-name: OrbisScope Live Harvester
+name: OrbisScope Market Predictor
+
 on:
   schedule:
-    - cron: '*/30 * * * *' # Every 30 minutes
-  workflow_dispatch:      # Allows manual trigger for testing
+    - cron: "17 * * * *" # LightGBM signals refresh hourly (offset from engine)
+  workflow_dispatch:
 
 jobs:
-  run-scraper:
+  run-predictor:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.11"
+          cache: pip
       - name: Install Dependencies
-        run: pip install feedparser supabase
-      - name: Execute Scraper
+        run: pip install -r requirements.txt
+      - name: Generate market signals
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: python scraper.py
+        run: python predictor.py

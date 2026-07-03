@@ -2,4 +2,10 @@ supabase
 feedparser
 groq
 python-dotenv
-
+geopy
+# predictor (LightGBM tier)
+yfinance
+lightgbm
+scikit-learn
+pandas
+numpy

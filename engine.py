@@ -1,88 +1,111 @@
+"""
+OrbisScope Refinery Engine (Tier 1 — GitHub Actions, CPU, Groq API).
+
+The monitor -> refine loop (Fix 4): reads UNprocessed rows from raw_news_feed
+(those whose id is not yet a raw_news_id in processed_events), classifies each
+with Groq, geocodes the location, and writes structured intel into
+processed_events.
+
+Fixes baked in:
+  - Real dedup via raw_news_id (no more duplicate map pins on every run).
+  - Execution queue + exponential backoff on 429 (Fix 6) so heavy traffic
+    slows the pipeline instead of falling back to stale demo data.
+  - Location normalization so country names match the Mapbox fill layer.
+  - event_description is populated (the Gemini path used to leave it null,
+    starving the Live News panel).
+
+The Colab notebook mirrors this but swaps Groq for a local Qwen-2.5-7B model on
+the GPU as a zero-rate-limit fallback + adds embedding clustering.
+"""
+
 import os
 import json
-import feedparser
-from supabase import create_client, Client
+
 from groq import Groq
-from dotenv import load_dotenv
 
-load_dotenv()
-
-print("initiating orbisscope automated rss engine...")
-
-# 1. connect to services
-supabase: Client = create_client(
-    os.environ.get("SUPABASE_URL"), 
-    os.environ.get("SUPABASE_KEY")
+from common import (
+    get_supabase, RateLimiter, process_queue, normalize_location, Geocoder,
 )
+
+BATCH = 60          # max articles to refine per run (keeps Actions runs short)
+GROQ_MODEL = "llama-3.1-8b-instant"
+
 groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+# Groq free tier ~30 rpm; stay comfortably under it.
+limiter = RateLimiter(max_calls=25, period=60.0)
+geocoder = Geocoder()
 
-# 2. the bulletproof rss feeds
-# 2. The Bulletproof RSS Feeds
-RSS_FEEDS = [
-    # Geopolitics
-    "https://www.aljazeera.com/xml/rss/all.xml",
-    "http://feeds.bbci.co.uk/news/world/rss.xml",
-    "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
-    "https://www.theguardian.com/world/rss",
-    
-    # Defense & Cyber
-    "https://www.defensenews.com/arc/outboundfeeds/rss/?outputType=xml",
-    "https://feeds.feedburner.com/TheHackersNews",
-    
-    # Financial Markets
-    "https://finance.yahoo.com/news/rssindex",
-    "http://feeds.marketwatch.com/marketwatch/topstories/"
-]
+PROMPT = """You are a geopolitical intelligence analyst. Analyze this news event.
 
-def analyze_news(title, summary):
-    try:
-        # we force groq to output pure json so it goes straight into your database perfectly
-        prompt = f"""
-        analyze this news event: "{title} - {summary}"
-        return ONLY a valid JSON object with these exact keys:
-        "sentiment_score": a float from 0.0 to 1.0 representing geopolitical tension (1.0 is extreme war/crisis, 0.0 is total peace).
-        "location_name": the specific country or city mentioned.
-        "lat": approximate latitude as a float.
-        "lng": approximate longitude as a float.
-        "event_description": a one sentence summary.
-        """
+Title: {title}
+Summary: {summary}
 
-        chat_completion = groq_client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            model="llama-3.1-8b-instant",
-            temperature=0.1,
-            response_format={"type": "json_object"}
-        )
-        
-        result = json.loads(chat_completion.choices[0].message.content)
-        return result
-    except Exception as e:
-        print(f"groq error: {e}")
-        return None
+Return ONLY a valid JSON object with EXACTLY these keys:
+"category": one of "MILITARY_CONFLICT", "DIPLOMATIC_TENSION", "ECONOMIC_CRISIS", "NEUTRAL_NEWS"
+"tension_score": float 0.0 (total peace) to 1.0 (extreme war/crisis)
+"primary_location": the single most relevant country name, or "Global"
+"event_description": one concise sentence summarizing the event
+"""
 
-# 3. run the pipeline
-processed_data = []
 
-for url in RSS_FEEDS:
-    print(f"fetching {url}")
-    feed = feedparser.parse(url)
-    
-    # just grab the top 5 newest articles per feed to save api limits
-    for entry in feed.entries[:5]:
-        
-        # THE FIX: Safely try to get the description or summary. If neither exist, pass a blank string.
-        article_summary = entry.get('description', entry.get('summary', ''))
-        
-        intel = analyze_news(entry.title, article_summary)
-        
-        if intel and intel.get("lat") and intel.get("lng"):
-            # attach the frontend requirements
-            intel["event_type"] = "rss_intercept"
-            processed_data.append(intel)
-            print(f"processed: {intel.get('location_name')} with score {intel.get('sentiment_score')}")
+def classify(title, summary):
+    limiter.acquire()
+    resp = groq_client.chat.completions.create(
+        messages=[{"role": "user", "content": PROMPT.format(title=title, summary=summary or "")}],
+        model=GROQ_MODEL,
+        temperature=0.1,
+        response_format={"type": "json_object"},
+    )
+    return json.loads(resp.choices[0].message.content)
 
-# 4. push to supabase
-if processed_data:
-    print(f"pushing {len(processed_data)} events to supabase...")
-    supabase.table("processed_events").insert(processed_data).execute()
-    print("global feed updated successfully.")
+
+def get_unprocessed(supabase):
+    processed = supabase.table("processed_events").select("raw_news_id").limit(50000).execute()
+    done_ids = {r["raw_news_id"] for r in (processed.data or []) if r.get("raw_news_id")}
+
+    raw = (supabase.table("raw_news_feed")
+           .select("*")
+           .order("created_at", desc=True)
+           .limit(500)
+           .execute())
+    return [r for r in (raw.data or []) if r["id"] not in done_ids][:BATCH]
+
+
+def refine_one(supabase):
+    def handler(article):
+        intel = classify(article["title"], article.get("raw_text", ""))
+        loc = normalize_location(intel.get("primary_location", "Global"))
+        lat, lng = geocoder.locate(loc)
+        supabase.table("processed_events").insert({
+            "raw_news_id": article["id"],
+            "event_type": intel.get("category", "NEUTRAL_NEWS"),
+            "sentiment_score": float(intel.get("tension_score", 0.0)),
+            "location_name": loc,
+            "lat": lat,
+            "lng": lng,
+            "event_description": intel.get("event_description", article["title"]),
+        }).execute()
+        print(f"  [+] {intel.get('category')} {intel.get('tension_score')} | {loc}")
+
+    return handler
+
+
+def run():
+    supabase = get_supabase()
+    print("🧠 Refinery engine starting...")
+    todo = get_unprocessed(supabase)
+    if not todo:
+        print("✅ Everything refined. Standing by.")
+        return
+
+    print(f"Refining {len(todo)} new intercepts...")
+    handled = process_queue(
+        todo,
+        refine_one(supabase),
+        on_error=lambda a, e: print(f"  ❌ skipped '{a['title'][:40]}': {e}"),
+    )
+    print(f"✅ Refinery complete. {handled}/{len(todo)} events secured.")
+
+
+if __name__ == "__main__":
+    run()
