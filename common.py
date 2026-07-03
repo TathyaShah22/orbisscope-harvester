@@ -34,6 +34,27 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+# --------------------------------------------------------------------------
+# Source weighting — approximate BGRI's "brokerage reports > public news" by
+# weighting market-facing feeds above general world news.
+# --------------------------------------------------------------------------
+
+SOURCE_WEIGHTS = {
+    "MarketWatch": 1.5,
+    "Yahoo Finance": 1.5,
+    "Defense News": 1.3,
+    "The Hacker News": 1.2,
+    "BBC World": 1.0,
+    "New York Times": 1.0,
+    "Al Jazeera": 1.0,
+    "The Guardian": 1.0,
+}
+
+
+def source_weight(name: str) -> float:
+    return SOURCE_WEIGHTS.get(name, 1.0)
+
+
 def fetch_all(supabase, table, columns="*", order_col=None, desc=True, page_size=1000):
     """
     Fetch ALL rows from a table, paginating around PostgREST's default 1000-row

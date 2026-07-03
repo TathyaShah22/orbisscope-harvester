@@ -25,7 +25,7 @@ from groq import Groq
 
 from common import (
     get_supabase, RateLimiter, process_queue, normalize_location, Geocoder,
-    fetch_all,
+    fetch_all, source_weight,
 )
 
 BATCH = 60          # max articles to refine per run (keeps Actions runs short)
@@ -44,6 +44,8 @@ Summary: {summary}
 Return ONLY a valid JSON object with EXACTLY these keys:
 "category": one of "MILITARY_CONFLICT", "DIPLOMATIC_TENSION", "ECONOMIC_CRISIS", "NEUTRAL_NEWS"
 "tension_score": float 0.0 (total peace) to 1.0 (extreme war/crisis)
+"relevance": float 0.0 to 1.0 — how central this event is to global market / geopolitical risk (0 = boilerplate/irrelevant, 1 = a core market-moving risk)
+"sentiment": float -1.0 to 1.0 — direction for markets/stability (-1 = escalation / clearly negative, 0 = neutral, +1 = de-escalation / clearly positive)
 "primary_location": the single most relevant country name, or "Global"
 "event_description": one concise sentence summarizing the event
 """
@@ -82,6 +84,9 @@ def refine_one(supabase):
             "raw_news_id": article["id"],
             "event_type": intel.get("category", "NEUTRAL_NEWS"),
             "sentiment_score": float(intel.get("tension_score", 0.0)),
+            "relevance": float(intel.get("relevance", 0.5)),
+            "sentiment_signed": float(intel.get("sentiment", 0.0)),
+            "source_weight": source_weight(article.get("source", "")),
             "location_name": loc,
             "lat": lat,
             "lng": lng,
