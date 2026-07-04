@@ -35,8 +35,11 @@ def run():
     supabase = get_supabase()
     print("🏷️  Risk tagger starting...")
 
-    # Untagged events with usable text.
-    rows = fetch_all(supabase, "processed_events", "id,event_description,location_name,risk_id")
+    # Untagged events with usable text — newest first, so recently-refined
+    # events (which actually carry a description) get tagged before the old
+    # description-less backlog.
+    rows = fetch_all(supabase, "processed_events", "id,event_description,location_name,risk_id",
+                     order_col="processed_at", desc=True)
     todo = [r for r in rows
             if not r.get("risk_id") and (r.get("event_description") or r.get("location_name"))][:BATCH]
     if not todo:

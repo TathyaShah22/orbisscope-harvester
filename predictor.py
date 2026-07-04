@@ -268,10 +268,15 @@ def latest_attention_by_scope(supabase, scopes):
 
 
 def fetch_events_for_risk(supabase, slug, limit=6):
+    """Newest first, but prefer rows that actually carry a description —
+    older tagged events from before the description fix would otherwise
+    surface as blank "Event" placeholders."""
     q = supabase.table("processed_events").select("event_description,sentiment_score,processed_at")
     if slug:
         q = q.eq("risk_id", slug)
-    return q.order("processed_at", desc=True).limit(limit).execute().data or []
+    rows = q.order("processed_at", desc=True).limit(max(limit * 4, 20)).execute().data or []
+    with_desc = [r for r in rows if r.get("event_description")]
+    return (with_desc or rows)[:limit]
 
 
 def news_context(supabase, symbol, attn_map):
