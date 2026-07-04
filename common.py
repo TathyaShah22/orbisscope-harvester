@@ -83,7 +83,7 @@ RISKS = [
             "Western sanctions on Russia",
             "European natural gas and energy supply cut off",
         ],
-        "basket": {"CL=F": 1, "GC=F": 1, "GLD": 1, "^GSPC": -0.5, "^N225": -0.3},
+        "basket": {"CL=F": 1, "NG=F": 1, "GC=F": 1, "GLD": 1, "^GSPC": -0.5, "^N225": -0.3},
     },
     {
         "slug": "US_CHINA",
@@ -94,7 +94,7 @@ RISKS = [
             "semiconductor and chip export controls",
             "decoupling of US and Chinese technology",
         ],
-        "basket": {"^IXIC": -1, "^HSI": -1, "GC=F": 1, "GLD": 1},
+        "basket": {"^IXIC": -1, "^HSI": -1, "HG=F": -1, "GC=F": 1, "GLD": 1},
     },
     {
         "slug": "NORTH_KOREA",
@@ -124,7 +124,7 @@ RISKS = [
             "global supply chain disruption",
             "trade dispute between major economies",
         ],
-        "basket": {"^GSPC": -1, "^IXIC": -1, "^HSI": -0.5, "GC=F": 1},
+        "basket": {"^GSPC": -1, "^IXIC": -1, "^HSI": -0.5, "HG=F": -1, "GC=F": 1},
     },
     {
         "slug": "ENERGY",
@@ -135,7 +135,7 @@ RISKS = [
             "natural gas supply crisis",
             "global energy market disruption",
         ],
-        "basket": {"CL=F": 1, "^GSPC": -0.5},
+        "basket": {"CL=F": 1, "NG=F": 1, "^GSPC": -0.5},
     },
     {
         "slug": "FINANCIAL",

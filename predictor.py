@@ -35,18 +35,35 @@ import lightgbm as lgb
 from common import get_supabase, now_iso, fetch_all, RISKS
 
 # symbol -> display name. Symbols match the existing market_signals rows so the
-# upsert refreshes them in place.
+# upsert refreshes them in place. Categories (below) drive the frontend's
+# asset-class filter tabs, so they must use these exact lowercase keys:
+# equities, etf, metals, energy, agriculture.
 ASSETS = {
+    # Equities / indices
     "^GSPC": "S&P 500",
     "^IXIC": "NASDAQ",
     "^DJI": "Dow Jones",
     "^N225": "Nikkei 225",
     "^HSI": "Hang Seng",
     "^NSEI": "Nifty 50",
-    "GLD": "XAU/USD",
+    # ETFs
+    "SPY": "S&P 500 ETF",
+    "QQQ": "Nasdaq 100 ETF",
+    "DIA": "Dow Jones ETF",
+    "GLD": "Gold ETF",
+    # Metals
     "GC=F": "Gold Futures",
     "SI=F": "Silver",
-    "CL=F": "Crude Oil",
+    "HG=F": "Copper",
+    "PL=F": "Platinum",
+    # Energy
+    "CL=F": "Crude Oil (WTI)",
+    "NG=F": "Natural Gas",
+    # Agriculture & livestock
+    "ZC=F": "Corn",
+    "ZW=F": "Wheat",
+    "ZS=F": "Soybeans",
+    "LE=F": "Live Cattle",
 }
 
 ASSET_TAGS = {
@@ -56,10 +73,20 @@ ASSET_TAGS = {
     "^N225": {"category": "equities", "region": "japan"},
     "^HSI": {"category": "equities", "region": "china"},
     "^NSEI": {"category": "equities", "region": "india"},
-    "GLD": {"category": "metals", "region": "global"},
+    "SPY": {"category": "etf", "region": "us"},
+    "QQQ": {"category": "etf", "region": "us"},
+    "DIA": {"category": "etf", "region": "us"},
+    "GLD": {"category": "etf", "region": "global"},
     "GC=F": {"category": "metals", "region": "global"},
     "SI=F": {"category": "metals", "region": "global"},
+    "HG=F": {"category": "metals", "region": "global"},
+    "PL=F": {"category": "metals", "region": "global"},
     "CL=F": {"category": "energy", "region": "global"},
+    "NG=F": {"category": "energy", "region": "us"},
+    "ZC=F": {"category": "agriculture", "region": "us"},
+    "ZW=F": {"category": "agriculture", "region": "us"},
+    "ZS=F": {"category": "agriculture", "region": "us"},
+    "LE=F": {"category": "agriculture", "region": "us"},
 }
 
 RISK_NAME_BY_SLUG = {r["slug"]: r["name"] for r in RISKS}
