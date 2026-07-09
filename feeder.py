@@ -17,12 +17,28 @@ RSS_FEEDS = {
     "Al Jazeera": "https://www.aljazeera.com/xml/rss/all.xml",
     "New York Times": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
     "The Guardian": "https://www.theguardian.com/world/rss",
+    "UN News": "https://news.un.org/feed/subscribe/en/news/all/rss.xml",
+    # Regional
+    "Moscow Times": "https://www.themoscowtimes.com/rss/news",
+    "Middle East Eye": "https://www.middleeasteye.net/rss",
+    "SCMP": "https://www.scmp.com/rss/91/feed",
+    "The Diplomat": "https://thediplomat.com/feed/",
+    "AllAfrica": "https://allafrica.com/tools/headlines/rdf/latest/headlines.rdf",
+    # Conflict & security analysis
+    "War on the Rocks": "https://warontherocks.com/feed/",
+    "Bellingcat": "https://www.bellingcat.com/feed/",
+    "Long War Journal": "https://www.longwarjournal.org/feed",
+    # Policy & think tank
+    "Foreign Policy": "https://foreignpolicy.com/feed/",
+    "Foreign Affairs": "https://www.foreignaffairs.com/rss.xml",
     # Defense & Cyber
     "Defense News": "https://www.defensenews.com/arc/outboundfeeds/rss/?outputType=xml",
     "The Hacker News": "https://feeds.feedburner.com/TheHackersNews",
-    # Markets
+    # Markets & energy
     "Yahoo Finance": "https://finance.yahoo.com/news/rssindex",
     "MarketWatch": "http://feeds.marketwatch.com/marketwatch/topstories/",
+    "OilPrice": "https://oilprice.com/rss/main",
+    "EIA": "https://www.eia.gov/rss/todayinenergy.xml",
 }
 
 PER_FEED = 15  # newest N per feed per run
