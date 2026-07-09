@@ -42,12 +42,25 @@ def now_iso() -> str:
 SOURCE_WEIGHTS = {
     "MarketWatch": 1.5,
     "Yahoo Finance": 1.5,
+    "OilPrice": 1.4,
+    "EIA": 1.4,
     "Defense News": 1.3,
+    "War on the Rocks": 1.3,
+    "Bellingcat": 1.3,
     "The Hacker News": 1.2,
+    "Long War Journal": 1.2,
+    "Foreign Policy": 1.2,
+    "Foreign Affairs": 1.2,
+    "The Diplomat": 1.2,
+    "Moscow Times": 1.1,
+    "Middle East Eye": 1.1,
+    "SCMP": 1.1,
     "BBC World": 1.0,
     "New York Times": 1.0,
     "Al Jazeera": 1.0,
     "The Guardian": 1.0,
+    "UN News": 1.0,
+    "AllAfrica": 1.0,
 }
 
 
